@@ -125,11 +125,11 @@ def main():
 
     #Validation
     print(f"\033[1m \n-----Validating the model at the end of training: \033[0m")
-    trainer.validate(model, dataloaders=data_loaders['val'], ckpt_path=None if parsed_args.evaluation_mode else 'best')
+    trainer.validate(model, dataloaders=data_loaders['val'], ckpt_path=None if parsed_args.model_type in ['Predict_last_value', 'Predict_mean_value'] or parsed_args.evaluation_mode else 'best')
 
     #Testing
     print(f"\033[1m \n-----Testing the trained model: \033[0m")
-    trainer.test(model, dataloaders=data_loaders['test'], ckpt_path=None if parsed_args.evaluation_mode else 'best')
+    trainer.test(model, dataloaders=data_loaders['test'], ckpt_path=None if parsed_args.model_type in ['Predict_last_value', 'Predict_mean_value'] or parsed_args.evaluation_mode else 'best')
 
     print(f"------------------")
 

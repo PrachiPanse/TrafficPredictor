@@ -43,6 +43,7 @@ def preprocess_datasets(dataset_split_dict, lag_amount, forecast_horizon, datase
         dataset_split_dict[i].dataframe['model_input_lists'] = dataset_split_dict[i].dataframe['input_output_lists'].apply(lambda x: x[0])
         dataset_split_dict[i].dataframe['model_output_lists'] = dataset_split_dict[i].dataframe['input_output_lists'].apply(lambda x: x[1])
 
+        print(f"split {i} number of samples: {len(dataset_split_dict[i].dataframe)}")
     if 0:  
         dir_name = './logs/' + str(dataset_type_chosen)
         if not os.path.exists(dir_name):
