@@ -42,7 +42,7 @@ class Linear_model(torch.nn.Module):
 #################################################################################################
 ###################### Feedforward Neural Network (FNN) model ###################################
 #################################################################################################
-def get_fnn_model(lag_amount, forecast_horizon):
+def get_fnn_model(lag_amount, forecast_horizon): #without skip connection
     return  nn.Sequential(nn.Linear(in_features = lag_amount, out_features = 100),
                           nn.ReLU(),
                           nn.Linear(in_features = 100, out_features = forecast_horizon)
@@ -68,35 +68,7 @@ class FNN_model_2(torch.nn.Module): #FNN with skip connections
 #################################################################################################
 ########################### Convolutional Neural Network (CNN) model ############################
 #################################################################################################
-class CNN_model(torch.nn.Module):
-    def __init__(self, lag_amount, forecast_horizon):
-        super().__init__()
-        kernel_1_size = 12
-        num_channels = 10
-        conv_output_size = lag_amount-kernel_1_size+1
-        pooling_output_size = math.floor((conv_output_size-kernel_1_size-1)/12 + 1)
-        self.conv = nn.Conv1d(in_channels = 1, out_channels = num_channels, stride = 1, kernel_size = kernel_1_size)
-        self.max_pooling = nn.MaxPool1d(kernel_size=kernel_1_size, stride=kernel_1_size)
-        self.flatten_layer = nn.Flatten(start_dim=1, end_dim=-1)
-        self.linear_1 = nn.Linear(
-            in_features = pooling_output_size*num_channels,
-            out_features = 32, bias=True
-            )
-        self.relu_layer = nn.ReLU()
-        self.linear_2= nn.Linear(in_features = 32, out_features = forecast_horizon)
-
-    def forward(self, input):
-        hidden = self.conv(input.unsqueeze(1))
-        hidden = self.max_pooling(hidden)
-        hidden = self.flatten_layer(hidden)
-        hidden = self.relu_layer(hidden)
-        hidden = self.linear_1(hidden)
-        hidden = self.relu_layer(hidden)
-        pred = self.linear_2(hidden)
-        return pred
-
-
-class CNN_model_2(torch.nn.Module):
+class CNN_model_2(torch.nn.Module): #without skip connection
     def __init__(self, lag_amount, forecast_horizon):
         super().__init__()
         kernel_1_size = 24
@@ -124,11 +96,7 @@ class CNN_model_2(torch.nn.Module):
         return pred
     
 
-
-
-
-
-class CNN_model_3(torch.nn.Module):
+class CNN_model_3(torch.nn.Module): #with skip connection
     def __init__(self, lag_amount, forecast_horizon):
         super().__init__()
         kernel_1_size = 24
@@ -159,137 +127,7 @@ class CNN_model_3(torch.nn.Module):
 #################################################################################################
 ####################################### Transformer model #######################################
 #################################################################################################
-class Transformer_model(torch.nn.Module):
-    def __init__(self, lag_amount, forecast_horizon): #input size is batch size * sequence length (210 here)
-        super().__init__()
-        self.num_heads = 1      #num of ways in which attention is done
-        self.num_layers = 3
-        self.dim_feedforward = 18
-        self.position_embedding_dimension = 5
-        self.num_features = 1+self.position_embedding_dimension #(size of each vector) which is equal to input + position features
-        self.position_embedding_layer = nn.Embedding(num_embeddings = lag_amount, embedding_dim = self.position_embedding_dimension)
-        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model=self.num_features, 
-                                                                    nhead=self.num_heads, 
-                                                                    dim_feedforward=self.dim_feedforward, 
-                                                                    batch_first = True)
-        self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers=self.num_layers)
-        self.relu_layer = nn.ReLU()
-        self.linear= nn.Linear(in_features = self.num_features * lag_amount, out_features = forecast_horizon) #input features to be selected using techniques like - 1. mean over seq len dimension 2. max pooling (usually better) 3. select any particular one (last might be better for time series)
-         
-    def forward(self, input): #input size: batch_size * seq_len  #model expects batch_size*seqlen*num_features
-        position_values = torch.arange(input.shape[1], device=input.device) #size: seq_len
-        position_values = position_values.repeat(input.shape[0], 1) #size: batch_size*seq_len
-        position_values_embedding = self.position_embedding_layer(position_values) #size: batch_size*seq_len*position_embedding_dimension
-        input_with_positions = torch.cat([input.unsqueeze(2), position_values_embedding], dim=2) #size: batch_size*seq_len*num_features          #these can be added or concatenated
-        hidden = self.transformer_encoder(input_with_positions)  #size: batch_size*seq_len*num_features
-        hidden = hidden + input_with_positions  #skip connection
-        hidden = self.relu_layer(hidden) #size: batch_size*seq_len*num_features
-        hidden = hidden.flatten(start_dim = 1)  #size: batch_size*(seq_len x num_features)
-        pred = self.linear(hidden)#size: batch_size*FH
-        return pred
-    
-
-
-
-class Transformer_model_2(torch.nn.Module):
-    def __init__(self, lag_amount, forecast_horizon): #input size is batch size * sequence length (210 here)
-        super().__init__()
-        self.num_heads = 1      #num of ways in which attention is done
-        self.num_layers = 3
-        self.dim_feedforward = 18
-        self.position_embedding_dimension = 3
-        self.num_features = 1+self.position_embedding_dimension #(size of each vector) which is equal to input + position features
-        self.position_embedding_layer = nn.Embedding(num_embeddings = lag_amount, embedding_dim = self.position_embedding_dimension)
-        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model=self.num_features, 
-                                                                    nhead=self.num_heads, 
-                                                                    dim_feedforward=self.dim_feedforward, 
-                                                                    batch_first = True)
-        self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers=self.num_layers)
-        self.relu_layer = nn.ReLU()
-        self.linear= nn.Linear(in_features = self.num_features * lag_amount, out_features = forecast_horizon) #input features to be selected using techniques like - 1. mean over seq len dimension 2. max pooling (usually better) 3. select any particular one (last might be better for time series)
-         
-    def forward(self, input): #input size: batch_size * seq_len  #model expects batch_size*seqlen*num_features
-        position_values = torch.arange(input.shape[1], device=input.device) #size: seq_len
-        position_values = position_values.repeat(input.shape[0], 1) #size: batch_size*seq_len
-        position_values_embedding = self.position_embedding_layer(position_values) #size: batch_size*seq_len*position_embedding_dimension
-        input_with_positions = torch.cat([input.unsqueeze(2), position_values_embedding], dim=2) #size: batch_size*seq_len*num_features          #these can be added or concatenated
-        hidden = self.transformer_encoder(input_with_positions)  #size: batch_size*seq_len*num_features
-        hidden = hidden + input_with_positions  #skip connection
-        hidden = self.relu_layer(hidden) #size: batch_size*seq_len*num_features
-        hidden = hidden.flatten(start_dim = 1)  #size: batch_size*(seq_len x num_features)
-        pred = self.linear(hidden)#size: batch_size*FH
-        return pred
-    
-
-
-
-
-class Transformer_model_3(torch.nn.Module):
-    def __init__(self, lag_amount, forecast_horizon): #input size is batch size * sequence length (210 here)
-        super().__init__()
-        self.num_heads = 1      #num of ways in which attention is done
-        self.num_layers = 3
-        self.dim_feedforward = 18
-        self.dropout_value = 0
-        self.position_embedding_dimension = 3
-        self.num_features = 1+self.position_embedding_dimension #(size of each vector) which is equal to input + position features
-        self.position_embedding_layer = nn.Embedding(num_embeddings = lag_amount, embedding_dim = self.position_embedding_dimension)
-        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model=self.num_features, 
-                                                                    nhead=self.num_heads, 
-                                                                    dim_feedforward=self.dim_feedforward, 
-                                                                    batch_first = True,
-                                                                    dropout = self.dropout_value)
-        self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers=self.num_layers)
-        self.relu_layer = nn.ReLU()
-        self.linear= nn.Linear(in_features = self.num_features * lag_amount, out_features = forecast_horizon) #input features to be selected using techniques like - 1. mean over seq len dimension 2. max pooling (usually better) 3. select any particular one (last might be better for time series)
-
-    def forward(self, input): #input size: batch_size * seq_len  #model expects batch_size*seqlen*num_features
-        position_values = torch.arange(input.shape[1], device=input.device) #size: seq_len
-        position_values = position_values.repeat(input.shape[0], 1) #size: batch_size*seq_len
-        position_values_embedding = self.position_embedding_layer(position_values) #size: batch_size*seq_len*position_embedding_dimension
-        input_with_positions = torch.cat([input.unsqueeze(2), position_values_embedding], dim=2) #size: batch_size*seq_len*num_features          #these can be added or concatenated
-        hidden = self.transformer_encoder(input_with_positions)  #size: batch_size*seq_len*num_features
-        hidden = hidden + input_with_positions  #skip connection
-        hidden = self.relu_layer(hidden) #size: batch_size*seq_len*num_features
-        hidden = hidden.flatten(start_dim = 1)  #size: batch_size*(seq_len x num_features)
-        pred = self.linear(hidden)#size: batch_size*FH
-        return pred
-    
-
-
-class Transformer_model_4(torch.nn.Module):
-    def __init__(self, lag_amount, forecast_horizon): #input size is batch size * sequence length (210 here)
-        super().__init__()
-        self.num_heads = 1      #num of ways in which attention is done
-        self.num_layers = 3
-        self.dim_feedforward = 18
-        self.dropout_value = 0
-        self.position_embedding_dimension = 3
-        self.num_features = 1+self.position_embedding_dimension #(size of each vector) which is equal to input + position features
-        self.position_embedding_layer = nn.Embedding(num_embeddings = lag_amount, embedding_dim = self.position_embedding_dimension)
-        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model=self.num_features, 
-                                                                    nhead=self.num_heads, 
-                                                                    dim_feedforward=self.dim_feedforward, 
-                                                                    batch_first = True,
-                                                                    dropout = self.dropout_value)
-        self.transformer_encoder = nn.TransformerEncoder(self.transformer_encoder_layer, num_layers=self.num_layers)
-        self.relu_layer = nn.ReLU()
-        self.linear= nn.Linear(in_features = self.num_features * lag_amount, out_features = forecast_horizon) #input features to be selected using techniques like - 1. mean over seq len dimension 2. max pooling (usually better) 3. select any particular one (last might be better for time series)
-
-    def forward(self, input): #input size: batch_size * seq_len  #model expects batch_size*seqlen*num_features
-        position_values = torch.arange(input.shape[1], device=input.device) #size: seq_len
-        position_values = position_values.repeat(input.shape[0], 1) #size: batch_size*seq_len
-        position_values_embedding = self.position_embedding_layer(position_values) #size: batch_size*seq_len*position_embedding_dimension
-        input_with_positions = torch.cat([input.unsqueeze(2), position_values_embedding], dim=2) #size: batch_size*seq_len*num_features          #these can be added or concatenated
-        hidden = self.transformer_encoder(input_with_positions)  #size: batch_size*seq_len*num_features
-        hidden = hidden + input_with_positions  #skip connection
-        hidden = hidden.flatten(start_dim = 1)  #size: batch_size*(seq_len x num_features)
-        pred = self.linear(hidden)#size: batch_size*FH
-        return pred
-    
-
-
-class Transformer_model_5(torch.nn.Module):
+class Transformer_model_5(torch.nn.Module): #without skip connection
     def __init__(self, lag_amount, forecast_horizon): #input size is batch size * sequence length (210 here)
         super().__init__()
         self.num_heads = 1      #num of ways in which attention is done
@@ -320,9 +158,7 @@ class Transformer_model_5(torch.nn.Module):
         return pred
 
 
-
-
-class Transformer_model_6(torch.nn.Module):
+class Transformer_model_6(torch.nn.Module): #with skip connection
     def __init__(self, lag_amount, forecast_horizon): #input size is batch size * sequence length (210 here)
         super().__init__()
         self.num_heads = 1      #num of ways in which attention is done
@@ -352,14 +188,11 @@ class Transformer_model_6(torch.nn.Module):
         hidden = hidden.flatten(start_dim = 1)  #size: batch_size*(seq_len x (num_features+1))
         pred = self.linear(hidden)#size: batch_size*FH
         return pred
-    
-
-
 
 #################################################################################################
 ################################ Recurrent Neural Network #######################################
 #################################################################################################
-class RNN_model(torch.nn.Module):
+class RNN_model(torch.nn.Module): #without skip connection
     def __init__(self, lag_amount, forecast_horizon):
         super().__init__()
         self.LSTM_layer = nn.LSTM(input_size=1, hidden_size=100, num_layers=1, batch_first=True)
@@ -373,35 +206,7 @@ class RNN_model(torch.nn.Module):
         return pred 
     
 
-class RNN_model_2(torch.nn.Module):
-    def __init__(self, lag_amount, forecast_horizon):
-        super().__init__()
-        self.LSTM_layer = nn.LSTM(input_size=1, hidden_size=100, num_layers=1, batch_first=True)
-        self.relu_layer = nn.ReLU()
-        self.linear_layer = torch.nn.Linear(in_features = 100, out_features = forecast_horizon)
-
-    def forward(self, input):
-        hidden, (h_n, c_n) = self.LSTM_layer(input.unsqueeze(2))
-        pred = self.linear_layer(hidden[:, -1, :]) #retaining only the last of the sequence
-        return pred 
-    
-
-class RNN_model_3(torch.nn.Module):
-    def __init__(self, lag_amount, forecast_horizon):
-        super().__init__()
-        self.LSTM_layer = nn.LSTM(input_size=1, hidden_size=100, num_layers=1, batch_first=True)
-        self.relu_layer = nn.ReLU()
-        self.linear_layer = torch.nn.Linear(in_features = 100 + 1, out_features = forecast_horizon)
-
-    def forward(self, input): #input size: ([batch_size, lag]) 
-        hidden, (h_n, c_n) = self.LSTM_layer(input.unsqueeze(2)) #hidden size: ([batch_size, lag, hidden_size])
-        hidden = self.relu_layer(hidden) #hidden size: ([batch_size, lag, hidden_size])
-        hidden = torch.cat([hidden, input.unsqueeze(2)], dim = 2) #hidden size: ([batch_size, lag, hidden_size + 1])
-        pred = self.linear_layer(hidden[:, -1, :]) #retaining only the last of the sequence
-        return pred 
-
-
-class RNN_model_4(torch.nn.Module):
+class RNN_model_4(torch.nn.Module): #with skip connection
     def __init__(self, lag_amount, forecast_horizon):
         super().__init__()
         self.LSTM_layer = nn.LSTM(input_size=1, hidden_size=100, num_layers=1, batch_first=True)
@@ -496,19 +301,12 @@ model_mapping_dict = {
     'Predict_last_value' : Predict_last_value,
     'Predict_mean_value' : Predict_mean_value,
     'Linear_model'       : Linear_model,
-    'CNN_model'          : CNN_model,
     'RNN_model'          : RNN_model,
-    'Transformer_model'  : Transformer_model,
     'FNN_model'          : get_fnn_model,
     'CNN_model_2'        : CNN_model_2,
-    'Transformer_model_2': Transformer_model_2,
-    'Transformer_model_3': Transformer_model_3,
-    'Transformer_model_4': Transformer_model_4,
-    'RNN_model_2'        : RNN_model_2,
     'Transformer_model_5': Transformer_model_5,
     'Transformer_model_6': Transformer_model_6,
     'CNN_model_3'        : CNN_model_3,
-    'RNN_model_3'        : RNN_model_3,
     'FNN_model_2'        : FNN_model_2,
     'RNN_model_4'        : RNN_model_4,
 }
